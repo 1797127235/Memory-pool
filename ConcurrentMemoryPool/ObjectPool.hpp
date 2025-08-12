@@ -1,3 +1,4 @@
+#pragma once
 #include<iostream>
 #include<vector>
 #include<cstdlib>
@@ -64,7 +65,7 @@ public:
         return new(mem)T(std::forward<Args>(args)...);
     }
 
-    void Destory(T* obj)
+    void Destroy(T* obj)
     {
         if(obj) obj->~T();
         Delete(obj);
