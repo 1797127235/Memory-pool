@@ -48,7 +48,7 @@ void TestObjectPool()
     {
         for(size_t i=0;i<N;i++)
         {
-            v2.push_back(TNPool.New());
+            v2.push_back(TNPool.Construct());
         }
         for(size_t i=0;i<N;i++)
         {
