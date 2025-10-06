@@ -1,4 +1,5 @@
-#include"ThreadCache.h""
+#include"ThreadCache.h"
+#include"CentralCache.h"
 
 //申请内存
 void* ThreadCache::Allocate(size_t size) {
@@ -18,4 +19,41 @@ void* ThreadCache::Allocate(size_t size) {
 void ThreadCache::Deallocate(void* p,size_t size) {
     size_t pos = SizeClass::Index(size);
     _freeList[pos].Push(p);
+}
+
+
+//向中心缓存申请内存
+void* ThreadCache::FetchFromCentralCache(size_t index,size_t size) {
+    assert(size <= MAX_BYTES);
+
+    //慢开始算法
+    size_t batchNum = std::min(_freeList[index].MaxSize(),SizeClass::NumMoveSize(size));
+    size_t max_move = SizeClass::NumMoveSize(size);
+    size_t cur_max = _freeList[index].MaxSize();
+    //申请一段内存
+    void* start = nullptr;
+    void* end = nullptr;
+    size_t n = CentralCache::GetInstance()->FetchRangeObj(start,end,batchNum,size);
+    if (n == 0) {
+        // 可选：对 MaxSize 做一次温和退让，避免在压力下无限增大（若之前增长过）
+        if (cur_max > 1) {
+            _freeList[index].SetMaxSize(cur_max - 1); // 或者衰减到 max(1, cur_max/2)
+        }
+        return nullptr; // 由上层走慢路径（例如直接向 PageHeap 要 span）
+    }
+    if (n == 1) {
+        assert(start == end);
+        return start;
+    }
+
+    _freeList[index].PushRange(NextObj(start),end,n - 1);
+    if (n == batchNum && cur_max < max_move) {
+        _freeList[index].SetMaxSize(std::min(cur_max + 1,max_move));
+    }
+    else if (n < batchNum && cur_max > 1) {
+        //没拿满，做退让
+        _freeList[index].SetMaxSize(cur_max - 1);
+    }
+
+    return start;
 }

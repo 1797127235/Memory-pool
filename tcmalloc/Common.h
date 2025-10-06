@@ -17,6 +17,7 @@ typedef unsigned long long PAGE_ID;
 typedef size_t PAGE_ID;
 #else
 // linux
+typedef unsigned long long  PAGE_ID;
 #include<sys/mman.h>
 #include<unistd.h>
 #include <errno.h>
@@ -141,6 +142,10 @@ public:
         return _maxSize;
     }
 
+	void SetMaxSize(size_t size) {
+	    _maxSize = size;
+    }
+
     size_t Size()
     {
         return _size;
@@ -163,21 +168,6 @@ public:
 	// [8*1024+1,64*1024]		1024byte对齐     freelist[128,184)
 	// [64*1024+1,256*1024]		8*1024byte对齐   freelist[184,208)
 
-	/*size_t _RoundUp(size_t size, size_t alignNum)
-	{
-		size_t alignSize;
-		if (size % alignNum != 0)
-		{
-			alignSize = (size / alignNum + 1)*alignNum;
-		}
-		else
-		{
-			alignSize = size;
-		}
-
-		return alignSize;
-	}*/
-	// 1-8
 	static inline size_t _RoundUp(size_t bytes, size_t alignNum)
 	{
 		return ((bytes + alignNum - 1) & ~(alignNum - 1));
@@ -352,12 +342,6 @@ public:
 		assert(pos);
 		assert(pos != _head);
 
-		// 1、条件断点
-		// 2、查看栈帧
-		/*if (pos == _head)
-		{
-		int x = 0;
-		}*/
 
 		Span* prev = pos->_prev;
 		Span* next = pos->_next;
