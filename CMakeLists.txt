@@ -13,4 +13,6 @@ add_executable(Memory_pool
         tcmalloc/ThreadCache.cpp
         tcmalloc/CentralCache.cpp
         tcmalloc/CentralCache.h
-        tcmalloc/ConcurrentAlloc.h)
+        tcmalloc/ConcurrentAlloc.h
+        tcmalloc/PageCache.h
+        tcmalloc/PageCache.cpp)

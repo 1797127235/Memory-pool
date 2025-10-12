@@ -90,8 +90,6 @@ public:
     {
         assert(obj);
 
-        // 头插
-        //*(void**)obj = _freeList;
         NextObj(obj) = _freeList;
         _freeList = obj;
         ++_size;
