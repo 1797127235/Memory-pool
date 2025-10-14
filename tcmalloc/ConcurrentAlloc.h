@@ -1,6 +1,7 @@
 #pragma  once
 
 #include"ThreadCache.h"
+#include"PageCache.h"
 
 
 static void* ConcurrentAlloc(size_t size) {
@@ -14,5 +15,8 @@ static void* ConcurrentAlloc(size_t size) {
 
 static void ConcurrentFree(void* ptr) {
     assert(TlsThreadCache);
-    //TlsThreadCache->Deallocate(ptr);
+    Span* span = PageCache::GetInstance()->MapObjToSpan(ptr);
+
+    size_t objsize = span->_objSize;
+    TlsThreadCache->Deallocate(ptr,objsize);
 }

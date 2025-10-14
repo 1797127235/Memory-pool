@@ -15,13 +15,6 @@ void* ThreadCache::Allocate(size_t size) {
     }
 }
 
-//归还内存
-void ThreadCache::Deallocate(void* p,size_t size) {
-    size_t pos = SizeClass::Index(size);
-    _freeList[pos].Push(p);
-}
-
-
 //向中心缓存申请内存
 void* ThreadCache::FetchFromCentralCache(size_t index,size_t size) {
     assert(size <= MAX_BYTES);

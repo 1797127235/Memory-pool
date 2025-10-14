@@ -83,7 +83,7 @@ size_t CentralCache::FetchRangeObj(void *&start, void *&end, size_t batchNum, si
 
 }
 
-
+//归还内存到span
 void CentralCache::ReleaseListToSpans(void* start, size_t size) 
 {
     int index = SizeClass::Index(size);
@@ -94,13 +94,16 @@ void CentralCache::ReleaseListToSpans(void* start, size_t size)
     {
         void* next = NextObj(start);
         //看是哪页的span
+        PageCache::GetInstance()->Getmtx().lock();
         Span* span = PageCache::GetInstance()->MapObjToSpan(start);
+        
+        PageCache::GetInstance()->Getmtx().unlock();
         
         NextObj(start) = span->_freeList;
         span->_freeList = start;
         span->_useCount--;
 
-        if(span->_useCount == 0) //span使用计数为0，归还给pagecache，合并大页
+        if(span->_useCount == 0) //span使用计数为0，归还给pagecache，合并大页  此时这个sapn的所有页都归还了
         {
             _spanList[index].Erase(span);
             span->_freeList = nullptr;
