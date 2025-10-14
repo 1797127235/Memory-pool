@@ -17,6 +17,12 @@ public:
 
     Span* NewSpan(size_t k);
 
+    //获取从对象到span的映射
+    Span* MapObjToSpan(void* obj);
+
+	// 释放空闲span回到Pagecache，并合并相邻的span
+	void ReleaseSpanToPageCache(Span* span);
+
 private:
     PageCache() {}
     PageCache(const PageCache &) = delete;

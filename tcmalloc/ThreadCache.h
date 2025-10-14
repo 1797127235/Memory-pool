@@ -11,6 +11,7 @@ public:
     void* FetchFromCentralCache(size_t index,size_t size);
 
     //释放对象时,链表过长时，回收内存回到中心缓存
+	void ListTooLong(FreeList& list, size_t size);
 
 private:
     FreeList _freeList[NFREELIST];

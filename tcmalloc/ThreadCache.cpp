@@ -57,3 +57,31 @@ void* ThreadCache::FetchFromCentralCache(size_t index,size_t size) {
 
     return start;
 }
+
+
+void ThreadCache::Deallocate(void* p,size_t size)
+{
+    assert(p);
+    assert(size <= MAX_BYTES);
+
+    size_t pos = SizeClass::Index(size);
+
+    _freeList[pos].Push(p);
+    
+    if(_freeList[pos].Size() >= _freeList[pos].MaxSize())
+    {
+        ListTooLong(_freeList[pos],size);
+    }
+}
+
+
+//将当前链表过长的内存归还给中心缓存
+void ThreadCache::ListTooLong(FreeList& list,size_t size)
+{
+    void* start = nullptr;
+    void* end = nullptr;
+    list.PopRange(start,end,list.MaxSize());
+    CentralCache::GetInstance()->ReleaseListToSpans(start,size);
+}
+
+

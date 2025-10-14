@@ -84,8 +84,42 @@ size_t CentralCache::FetchRangeObj(void *&start, void *&end, size_t batchNum, si
 }
 
 
-void CentralCache::ReleaseList(void* start, size_t size) 
+void CentralCache::ReleaseListToSpans(void* start, size_t size) 
 {
-    
-}
+    int index = SizeClass::Index(size);
 
+    _spanList[index]._mtx.lock();
+
+    while(start)
+    {
+        void* next = NextObj(start);
+        //看是哪页的span
+        Span* span = PageCache::GetInstance()->MapObjToSpan(start);
+        
+        NextObj(start) = span->_freeList;
+        span->_freeList = start;
+        span->_useCount--;
+
+        if(span->_useCount == 0) //span使用计数为0，归还给pagecache，合并大页
+        {
+            _spanList[index].Erase(span);
+            span->_freeList = nullptr;
+            span->_next = nullptr;
+            span->_prev = nullptr;
+            
+            _spanList[index]._mtx.unlock();
+
+            PageCache::GetInstance()-> Getmtx().lock();
+
+            PageCache::GetInstance()-> ReleaseSpanToPageCache(span);
+
+            PageCache::GetInstance()-> Getmtx().unlock();
+
+            _spanList[index]._mtx.lock();
+        }
+
+        start = next;
+    }
+
+    _spanList[index]._mtx.unlock();
+}

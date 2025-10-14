@@ -144,7 +144,7 @@ public:
 	    _maxSize = size;
     }
 
-    size_t Size()
+    size_t& Size()
     {
         return _size;
     }
@@ -152,7 +152,7 @@ public:
 private:
     void* _freeList = nullptr;
     size_t _maxSize = 1;
-    size_t _size = 0;
+    size_t _size = 0; //当前链表下挂的对象个数
 };
 
 // 计算对象大小的对齐映射规则
