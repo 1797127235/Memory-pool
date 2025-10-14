@@ -34,11 +34,10 @@ static const size_t PAGE_SHIFT = 12;
 inline static void* SystemAlloc(size_t kpage)
 {
 #ifdef _WIN32
-	void* ptr = VirtualAlloc(0, kpage << 13, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	void* ptr = VirtualAlloc(0, kpage << PAGE_SHIFT, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 #else
 	// linux下brk mmap等
-	const size_t kPageBytes = static_cast<size_t>(1) << 12;
-	const size_t bytes = kpage * kPageBytes;
+	const size_t bytes = kpage * (1 << PAGE_SHIFT);
 
 	const size_t header = sizeof(size_t);
 	const size_t total = bytes + header;

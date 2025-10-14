@@ -10,7 +10,8 @@ void* ThreadCache::Allocate(size_t size) {
     if (!_freeList[pos].Empty()) {
         return _freeList[pos].Pop();
     }
-    else { //表示当前桶没有空闲的空间
+    else { 
+        //从下一层批量获取一些小对象内存
         return FetchFromCentralCache(pos,alignsize);
     }
 }

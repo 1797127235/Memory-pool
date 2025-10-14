@@ -35,7 +35,7 @@ Span *PageCache::NewSpan(size_t k) {
             nspan->_n -= k;
             _spanLists[nspan->_n].PushFront(nspan);
             
-            // 建立nspan的映射
+            // 建立nspan的映射,存放首尾页
             _idSpanMap[nspan->_pageId] = nspan;
             _idSpanMap[nspan->_pageId + nspan->_n - 1] = nspan;
             
@@ -79,19 +79,19 @@ Span* PageCache::MapObjToSpan(void* obj)
 void PageCache::ReleaseSpanToPageCache(Span* span)
 {
     //返回的span合并成更大的页
-
-
     while(1)
     {
         PAGE_ID prevId = span->_pageId - 1;
         
-        auto it = _idSpanMap.find(prevId);
+        auto it = _idSpanMap.find(prevId);  //前一个页所在span
+
         if(it == _idSpanMap.end())
         {
             break;
         }
 
         Span* prev = it->second;
+
         if(prev->_isUse)
         {
             break;
@@ -108,8 +108,8 @@ void PageCache::ReleaseSpanToPageCache(Span* span)
         _spanLists[prev->_n]._mtx.lock();
         _spanLists[prev->_n].Erase(prev);
         _spanLists[prev->_n]._mtx.unlock();
+        delete prev;
     }
-
 
     while (1)
 	{
@@ -137,6 +137,7 @@ void PageCache::ReleaseSpanToPageCache(Span* span)
 		_spanLists[nextSpan->_n]._mtx.lock();
 		_spanLists[nextSpan->_n].Erase(nextSpan);
 		_spanLists[nextSpan->_n]._mtx.unlock();
+        delete nextSpan;
 	}
 
     _spanLists[span->_n].PushFront(span);
