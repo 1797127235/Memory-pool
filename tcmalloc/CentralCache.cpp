@@ -76,7 +76,7 @@ size_t CentralCache::FetchRangeObj(void *&start, void *&end, size_t batchNum, si
     NextObj(end) = nullptr;
     //更新span使用计数
     span->_useCount += actualNum;
-
+    span->_objSize = size;
     _spanList[index]._mtx.unlock();
 
     return actualNum;
@@ -93,11 +93,12 @@ void CentralCache::ReleaseListToSpans(void* start, size_t size)
     while(start)
     {
         void* next = NextObj(start);
+
         //看是哪页的span
         PageCache::GetInstance()->Getmtx().lock();
         Span* span = PageCache::GetInstance()->MapObjToSpan(start);
-        
         PageCache::GetInstance()->Getmtx().unlock();
+
         
         NextObj(start) = span->_freeList;
         span->_freeList = start;

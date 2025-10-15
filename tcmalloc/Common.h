@@ -8,6 +8,7 @@
 #include<atomic>
 #include<mutex>
 #include<cassert>
+#include<memory>
 
 using std::cout;
 using std::endl;
@@ -36,18 +37,10 @@ inline static void* SystemAlloc(size_t kpage)
 #ifdef _WIN32
 	void* ptr = VirtualAlloc(0, kpage << PAGE_SHIFT, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 #else
-	// linux下brk mmap等
-	const size_t bytes = kpage * (1 << PAGE_SHIFT);
-
-	const size_t header = sizeof(size_t);
-	const size_t total = bytes + header;
-
-	void* raw = mmap(nullptr,total,PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
-	if (raw == MAP_FAILED) throw std::bad_alloc();
-
-	*reinterpret_cast<size_t*>(raw) = total;
-
-	void* ptr = static_cast<void*>(static_cast<char*>(raw) + header);
+	// linux下直接按页映射，返回页对齐指针
+	const size_t bytes = kpage << PAGE_SHIFT;
+	void* ptr = mmap(nullptr, bytes, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+	if (ptr == MAP_FAILED) throw std::bad_alloc();
 
 #endif
 
@@ -58,20 +51,14 @@ inline static void* SystemAlloc(size_t kpage)
 }
 
 
-inline static void SystemFree(void* ptr)
+inline static void SystemFree(void* ptr, size_t kpage)
 {
 #ifdef _WIN32
 	VirtualFree(ptr, 0, MEM_RELEASE);
 #else
-	// sbrk unmmap等
 	if (!ptr) return ;
-	const size_t header = sizeof(size_t);
-
-	void* raw = static_cast<void*>(static_cast<char*>(ptr) - header);
-
-	size_t total = *reinterpret_cast<size_t*>(raw);
-
-	if (munmap(raw,total) != 0) {
+	const size_t bytes = kpage << PAGE_SHIFT;
+	if (munmap(ptr, bytes) != 0) {
 		perror("munmap failed");
 	}
 #endif
@@ -194,6 +181,7 @@ public:
 		}
 		else
 		{
+			//一页进行对齐
 			return _RoundUp(size, 1<<PAGE_SHIFT);
 		}
 	}

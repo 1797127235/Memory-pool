@@ -1,5 +1,6 @@
 #include"ThreadCache.h"
 #include"CentralCache.h"
+thread_local ThreadCache* TlsThreadCache = nullptr;
 
 //申请内存
 void* ThreadCache::Allocate(size_t size) {

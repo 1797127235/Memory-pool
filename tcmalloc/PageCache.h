@@ -3,6 +3,8 @@
 #include<mutex>
 #include<unordered_map>
 #include"Common.h"
+#include"ObjectPool.h"
+#include"PageMap.h"
 
 
 class PageCache {
@@ -29,6 +31,8 @@ private:
     PageCache &operator=(const PageCache &) = delete;
     ~PageCache() {}
 
+    ObjectPool<Span> _spanPool;
+
     std::mutex _mtx;
 
     static PageCache _sInst;
@@ -36,4 +40,5 @@ private:
     SpanList _spanLists[NPAGES];
     std::unordered_map<PAGE_ID,Span*> _idSpanMap;
 
+    TCMalloc_PageMap3<64 - PAGE_SHIFT> _pageMap;
 };

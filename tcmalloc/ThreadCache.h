@@ -17,6 +17,5 @@ private:
     FreeList _freeList[NFREELIST];
 };
 
-//线程本地存储
-//保证只在当前文件可见
-static thread_local ThreadCache* TlsThreadCache = nullptr;
+//线程本地存储声明（在 ThreadCache.cpp 中定义）
+extern thread_local ThreadCache* TlsThreadCache;
