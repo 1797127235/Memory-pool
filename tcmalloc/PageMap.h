@@ -132,12 +132,12 @@ private:
 
 	// Interior node
 	struct Node {
-		Node* ptrs[INTERIOR_LENGTH];
+		std::atomic<Node*> ptrs[INTERIOR_LENGTH];
 	};
 
 	// Leaf node
 	struct Leaf {
-		void* values[LEAF_LENGTH];
+		std::atomic<void*> values[LEAF_LENGTH];
 	};
 
 	Node* root_;                          // Root of radix tree
@@ -151,7 +151,9 @@ private:
 	Node* NewNode() {
 		Node* result = reinterpret_cast<Node*>((*allocator_)(sizeof(Node)));
 		if (result != NULL) {
-			memset(result, 0, sizeof(*result));
+			for (int i = 0; i < INTERIOR_LENGTH; ++i) {
+				result->ptrs[i].store(nullptr, std::memory_order_relaxed);
+			}
 		}
 		return result;
 	}
@@ -173,11 +175,15 @@ public:
 		const Number i1 = k >> (LEAF_BITS + INTERIOR_BITS);
 		const Number i2 = (k >> LEAF_BITS) & (INTERIOR_LENGTH - 1);
 		const Number i3 = k & (LEAF_LENGTH - 1);
-		if ((k >> BITS) > 0 ||
-			root_->ptrs[i1] == NULL || root_->ptrs[i1]->ptrs[i2] == NULL) {
-			return NULL;
-		}
-		return reinterpret_cast<Leaf*>(root_->ptrs[i1]->ptrs[i2])->values[i3];
+		if ((k >> BITS) > 0) return NULL;
+
+		Node* p1 = root_->ptrs[i1].load(std::memory_order_acquire);
+		if (p1 == nullptr) return NULL;
+		Node* p2 = p1->ptrs[i2].load(std::memory_order_acquire);
+		if (p2 == nullptr) return NULL;
+
+		Leaf* leaf = reinterpret_cast<Leaf*>(p2);
+		return leaf->values[i3].load(std::memory_order_acquire);
 	}
 
 	void set(Number k, void* v) {
@@ -185,7 +191,10 @@ public:
         const Number i1 = k >> (LEAF_BITS + INTERIOR_BITS);
         const Number i2 = (k >> LEAF_BITS) & (INTERIOR_LENGTH - 1);
         const Number i3 = k & (LEAF_LENGTH - 1);
-        reinterpret_cast<Leaf*>(root_->ptrs[i1]->ptrs[i2])->values[i3] = v;
+        Node* p1 = root_->ptrs[i1].load(std::memory_order_acquire);
+        Node* p2 = p1->ptrs[i2].load(std::memory_order_acquire);
+        Leaf* leaf = reinterpret_cast<Leaf*>(p2);
+        leaf->values[i3].store(v, std::memory_order_release);
     }
 
 	bool Ensure(Number start, size_t n) {
@@ -198,19 +207,21 @@ public:
 				return false;
 
 			// Make 2nd level node if necessary
-			if (root_->ptrs[i1] == NULL) {
-				Node* n = NewNode();
-				if (n == NULL) return false;
-				root_->ptrs[i1] = n;
-			}
+			if (root_->ptrs[i1].load(std::memory_order_acquire) == NULL) {
+                Node* n = NewNode();
+                if (n == NULL) return false;
+                root_->ptrs[i1].store(n, std::memory_order_release);
+            }
 
 			// Make leaf node if necessary
-			if (root_->ptrs[i1]->ptrs[i2] == NULL) {
-				Leaf* leaf = reinterpret_cast<Leaf*>((*allocator_)(sizeof(Leaf)));
-				if (leaf == NULL) return false;
-				memset(leaf, 0, sizeof(*leaf));
-				root_->ptrs[i1]->ptrs[i2] = reinterpret_cast<Node*>(leaf);
-			}
+			if (root_->ptrs[i1].load(std::memory_order_acquire)->ptrs[i2].load(std::memory_order_acquire) == NULL) {
+                Leaf* leaf = reinterpret_cast<Leaf*>((*allocator_)(sizeof(Leaf)));
+                if (leaf == NULL) return false;
+                for (int i = 0; i < LEAF_LENGTH; ++i) {
+                    leaf->values[i].store(nullptr, std::memory_order_relaxed);
+                }
+                root_->ptrs[i1].load(std::memory_order_acquire)->ptrs[i2].store(reinterpret_cast<Node*>(leaf), std::memory_order_release);
+            }
 
 			// Advance key past whatever is covered by this leaf node
 			key = ((key >> LEAF_BITS) + 1) << LEAF_BITS;

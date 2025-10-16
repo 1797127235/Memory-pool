@@ -137,7 +137,7 @@ public:
 
 private:
     void* _freeList = nullptr;
-    size_t _maxSize = 1;
+    size_t _maxSize = 32;
     size_t _size = 0; //当前链表下挂的对象个数
 };
 

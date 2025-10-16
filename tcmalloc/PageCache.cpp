@@ -15,10 +15,12 @@ Span *PageCache::NewSpan(size_t k) {
         span->_n = k;
         span->_isUse = true;
 
-        // 大页直接建立首尾映射
+        // 在用大页：逐页映射，保证 MapObjToSpan 命中
         _pageMap.Ensure(span->_pageId, span->_n);
-        _pageMap.set(span->_pageId, span);
-        _pageMap.set(span->_pageId + span->_n - 1, span);
+        for (size_t i = 0; i < span->_n; ++i)
+        {
+            _pageMap.set(span->_pageId + i, span);
+        }
 
         return span;
     }
@@ -101,10 +103,12 @@ void PageCache::ReleaseSpanToPageCache(Span* span)
     if(span->_n > NPAGES - 1)
     {
         void* ptr = (void*)(span->_pageId << PAGE_SHIFT);
-        // 清理映射（首尾清空）
+        // 清理映射（逐页清空）
         _pageMap.Ensure(span->_pageId, span->_n);
-        _pageMap.set(span->_pageId, nullptr);
-        _pageMap.set(span->_pageId + span->_n - 1, nullptr);
+        for (PAGE_ID pid = span->_pageId; pid < span->_pageId + span->_n; ++pid)
+        {
+            _pageMap.set(pid, nullptr);
+        }
         SystemFree(ptr, span->_n);
         _spanPool.Delete(span);
         return;

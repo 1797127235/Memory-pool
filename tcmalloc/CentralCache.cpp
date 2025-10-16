@@ -63,7 +63,7 @@ size_t CentralCache::FetchRangeObj(void *&start, void *&end, size_t batchNum, si
 
     start = span->_freeList;
     end = start;
-    int i = 0;
+    size_t i = 0;
     size_t actualNum = 1;
     //取出batchNum个内存块
     while (i < batchNum -1 && NextObj(end)) {
@@ -83,46 +83,73 @@ size_t CentralCache::FetchRangeObj(void *&start, void *&end, size_t batchNum, si
 
 }
 
-//归还内存到span
+//归还内存到span（按Span分组，减少锁切换）
 void CentralCache::ReleaseListToSpans(void* start, size_t size) 
 {
-    int index = SizeClass::Index(size);
+    const int index = SizeClass::Index(size);
 
+    // 1) 在PageCache锁下，将对象链按Span分组，形成每组的start/end与计数
+    std::unordered_map<Span*, void*> groupStart;
+    std::unordered_map<Span*, void*> groupEnd;
+    std::unordered_map<Span*, size_t> groupCount;
+
+    PageCache::GetInstance()->Getmtx().lock();
+    void* cur = start;
+    while (cur)
+    {
+        void* next = NextObj(cur);
+        Span* span = PageCache::GetInstance()->MapObjToSpan(cur);
+
+        if (groupStart.find(span) == groupStart.end())
+        {
+            groupStart[span] = cur;
+            groupEnd[span] = cur;
+            groupCount[span] = 1;
+        }
+        else
+        {
+            NextObj(groupEnd[span]) = cur;
+            groupEnd[span] = cur;
+            groupCount[span] += 1;
+        }
+        cur = next;
+    }
+    // 断尾
+    for (auto& kv : groupEnd)
+    {
+        NextObj(kv.second) = nullptr;
+    }
+    PageCache::GetInstance()->Getmtx().unlock();
+
+    // 2) 在中心缓存桶锁下，批量把各组挂回span，并处理useCount==0的回收
     _spanList[index]._mtx.lock();
 
-    while(start)
+    for (auto& kv : groupStart)
     {
-        void* next = NextObj(start);
+        Span* span = kv.first;
+        void* gstart = kv.second;
+        void* gend = groupEnd[span];
+        size_t cnt = groupCount[span];
 
-        //看是哪页的span
-        PageCache::GetInstance()->Getmtx().lock();
-        Span* span = PageCache::GetInstance()->MapObjToSpan(start);
-        PageCache::GetInstance()->Getmtx().unlock();
+        NextObj(gend) = span->_freeList;
+        span->_freeList = gstart;
+        span->_useCount -= cnt;
 
-        
-        NextObj(start) = span->_freeList;
-        span->_freeList = start;
-        span->_useCount--;
-
-        if(span->_useCount == 0) //span使用计数为0，归还给pagecache，合并大页  此时这个sapn的所有页都归还了
+        if (span->_useCount == 0)
         {
             _spanList[index].Erase(span);
             span->_freeList = nullptr;
             span->_next = nullptr;
             span->_prev = nullptr;
-            
+
             _spanList[index]._mtx.unlock();
 
-            PageCache::GetInstance()-> Getmtx().lock();
-
-            PageCache::GetInstance()-> ReleaseSpanToPageCache(span);
-
-            PageCache::GetInstance()-> Getmtx().unlock();
+            PageCache::GetInstance()->Getmtx().lock();
+            PageCache::GetInstance()->ReleaseSpanToPageCache(span);
+            PageCache::GetInstance()->Getmtx().unlock();
 
             _spanList[index]._mtx.lock();
         }
-
-        start = next;
     }
 
     _spanList[index]._mtx.unlock();
